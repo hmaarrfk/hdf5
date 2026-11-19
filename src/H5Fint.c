@@ -1157,6 +1157,9 @@ H5F__new(H5F_shared_t *shared, unsigned flags, hid_t fcpl_id, hid_t fapl_id, H5F
         f->shared->sohm_vers = HDF5_SHAREDHEADER_VERSION;
         f->shared->accum.loc = HADDR_UNDEF;
         f->shared->lf        = lf;
+#ifdef H5_HAVE_THREADSAFE
+        H5TS_atomic_init_uint(&f->shared->nunlocked_reads, 0);
+#endif
 
         /* Initialization for handling file space */
         for (u = 0; u < NELMTS(f->shared->fs_addr); u++) {
@@ -1417,6 +1420,14 @@ H5F__dest(H5F_t *f, bool flush, bool free_on_failure)
         /* Mark this file as closing */
         f->shared->closing = true;
 
+#ifdef H5_HAVE_THREADSAFE
+        /* Wait for the raw reads that run without the global lock (see
+         * H5F_shared_block_read_unlocked()) to finish with the file driver.
+         * They need no lock to finish. */
+        while (H5TS_atomic_load_uint(&f->shared->nunlocked_reads) > 0)
+            H5TS_thread_yield();
+#endif
+
         /* Flush at this point since the file will be closed (phase 1).
          * Only try to flush the file if it was opened with write access, and if
          * the caller requested a flush.
@@ -1633,6 +1644,10 @@ H5F__dest(H5F_t *f, bool flush, bool free_on_failure)
         for (actype = 0; actype < (int)H5AC_NTYPES; actype++)
             if (f->shared->retries[actype])
                 f->shared->retries[actype] = (uint32_t *)H5MM_xfree(f->shared->retries[actype]);
+
+#ifdef H5_HAVE_THREADSAFE
+        H5TS_atomic_destroy_uint(&f->shared->nunlocked_reads);
+#endif
 
         /* Destroy shared file struct */
         f->shared = (H5F_shared_t *)H5FL_FREE(H5F_shared_t, f->shared);

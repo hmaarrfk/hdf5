@@ -216,6 +216,17 @@ We would like to thank the many HDF5 community members who contributed to this r
    the source chunk, and the address is in the source dataset's file. A
    sub-chunk range set with H5Pset_sub_chunk() applies to the source chunk.
 
+### H5Dread_chunk2() no longer holds the global lock while it reads
+
+   In a threadsafe build, H5Dread_chunk2() now releases the library's global
+   lock while the file driver reads the chunk, so direct chunk reads from
+   several threads overlap, and other threads can use the library meanwhile.
+   This happens when the file is open read-only without SWMR or a page buffer
+   and its driver sets the new feature flag H5FD_FEAT_CONCURRENT_READ, which
+   declares that its read() callback can run concurrently on one file without
+   the lock. The sec2 driver sets it where pread() is available. Closing the
+   last handle of a file waits for these reads to finish.
+
 
 ## Parallel Library
 

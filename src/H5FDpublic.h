@@ -183,6 +183,19 @@
  * read_selection(), or write_selection().
  */
 #define H5FD_FEAT_READWRITE_NO_H5_CALLS 0x00020000
+/**
+ * Defining H5FD_FEAT_CONCURRENT_READ for a VFL driver means that the driver
+ * read() callback may be called for raw data by several threads at once on the
+ * same file, while other threads use the file through the library, without the
+ * library's global lock held. The read() callback must not modify the file
+ * structure and must otherwise satisfy #H5FD_FEAT_READWRITE_NO_H5_CALLS. A
+ * threadsafe library then releases its global lock while it reads a raw chunk
+ * directly (H5Dread_chunk2()) from a file opened read-only without SWMR or a
+ * page buffer.
+ *
+ * \since 2.4.0
+ */
+#define H5FD_FEAT_CONCURRENT_READ 0x00040000
 
 /* ctl function definitions: */
 

@@ -282,6 +282,86 @@ done:
 } /* end H5FD_read() */
 
 /*-------------------------------------------------------------------------
+ * Function:    H5FD_check_read_range
+ *
+ * Purpose:     Checks that SIZE bytes at ADDR lie below the end of
+ *              allocated space, as H5FD_read() does.
+ *
+ * Return:      Non-negative on success/Negative on failure
+ *
+ *-------------------------------------------------------------------------
+ */
+herr_t
+H5FD_check_read_range(H5FD_t *file, H5FD_mem_t type, haddr_t addr, size_t size)
+{
+    haddr_t eoa       = HADDR_UNDEF; /* End of allocated space */
+    herr_t  ret_value = SUCCEED;     /* Return value */
+
+    FUNC_ENTER_NOAPI(FAIL)
+
+    assert(file);
+    assert(file->cls);
+
+    if (!(file->access_flags & H5F_ACC_SWMR_READ)) {
+        /* Prepare & restore library for user callback */
+        H5_BEFORE_USER_CB(FAIL)
+            {
+                eoa = (file->cls->get_eoa)(file, type);
+            }
+        H5_AFTER_USER_CB(FAIL)
+        if (!H5_addr_defined(eoa))
+            HGOTO_ERROR(H5E_VFL, H5E_CANTINIT, FAIL, "driver get_eoa request failed");
+
+        if ((addr + file->base_addr + size) > eoa)
+            HGOTO_ERROR(H5E_ARGS, H5E_OVERFLOW, FAIL, "addr overflow, addr = %llu, size = %llu, eoa = %llu",
+                        (unsigned long long)(addr + file->base_addr), (unsigned long long)size,
+                        (unsigned long long)eoa);
+    }
+
+done:
+    FUNC_LEAVE_NOAPI(ret_value)
+} /* end H5FD_check_read_range() */
+
+/*-------------------------------------------------------------------------
+ * Function:    H5FD_read_driver
+ *
+ * Purpose:     Calls the driver's read callback for SIZE bytes at ADDR,
+ *              relative to the base address, without the range check and
+ *              the bookkeeping in the API context that H5FD_read() does.
+ *              It touches only the driver and this thread's API context
+ *              and error stack, so it can run without the global lock for
+ *              a driver that sets H5FD_FEAT_CONCURRENT_READ.
+ *
+ * Return:      Non-negative on success/Negative on failure
+ *
+ *-------------------------------------------------------------------------
+ */
+herr_t
+H5FD_read_driver(H5FD_t *file, H5FD_mem_t type, haddr_t addr, size_t size, void *buf /*out*/)
+{
+    hid_t  dxpl_id   = H5CX_get_dxpl(); /* DXPL for operation */
+    herr_t ret_value = SUCCEED;         /* Return value */
+
+    FUNC_ENTER_NOAPI(FAIL)
+
+    assert(file);
+    assert(file->cls);
+    assert(buf);
+
+    /* Prepare & restore library for user callback */
+    H5_BEFORE_USER_CB(FAIL)
+        {
+            ret_value = (file->cls->read)(file, type, dxpl_id, addr + file->base_addr, size, buf);
+        }
+    H5_AFTER_USER_CB(FAIL)
+    if (ret_value < 0)
+        HGOTO_ERROR(H5E_VFL, H5E_READERROR, FAIL, "driver read request failed");
+
+done:
+    FUNC_LEAVE_NOAPI(ret_value)
+} /* end H5FD_read_driver() */
+
+/*-------------------------------------------------------------------------
  * Function:    H5FD_write
  *
  * Purpose:     Private version of H5FDwrite()

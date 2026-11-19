@@ -586,6 +586,7 @@ H5_DLL herr_t H5F_traverse_mount(struct H5O_loc_t *oloc /*in,out*/);
 H5_DLL herr_t H5F_flush_mounts(H5F_t *f);
 
 /* Functions that operate on blocks of bytes wrt super block */
+H5_DLL herr_t H5F_shared_block_read_unlocked(H5F_shared_t *f_sh, haddr_t addr, size_t size, void *buf);
 H5_DLL herr_t H5F_shared_block_read(H5F_shared_t *f_sh, H5FD_mem_t type, haddr_t addr, size_t size,
                                     void *buf /*out*/);
 H5_DLL herr_t H5F_block_read(H5F_t *f, H5FD_mem_t type, haddr_t addr, size_t size, void *buf /*out*/);

@@ -365,6 +365,11 @@ struct H5F_shared_t {
     H5P_coll_md_read_flag_t coll_md_read;  /* Do all metadata reads collectively */
     bool                    coll_md_write; /* Do all metadata writes collectively */
 #endif                                     /* H5_HAVE_PARALLEL */
+
+#ifdef H5_HAVE_THREADSAFE
+    /* Raw reads in progress without the global lock, see H5F_shared_block_read_unlocked() */
+    H5TS_atomic_uint_t nunlocked_reads;
+#endif
 };
 
 /*

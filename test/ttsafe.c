@@ -155,6 +155,8 @@ main(int argc, char *argv[])
 #endif /* H5_HAVE_PTHREAD_H */
     AddTest("acreate", tts_acreate, NULL, cleanup_acreate, NULL, 0, "multi-attribute creation");
     AddTest("attr_vlen", tts_attr_vlen, NULL, cleanup_attr_vlen, NULL, 0, "multi-file-attribute-vlen read");
+    AddTest("direct_chunk", tts_direct_chunk, NULL, cleanup_direct_chunk, NULL, 0,
+            "direct chunk reads from several threads");
 
     /* Error stack test must be done after thread_id test to not mess up expected IDs */
     AddTest("error_stacks", tts_error_stacks, NULL, NULL, NULL, 0, "error stack tests");

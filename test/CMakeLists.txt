@@ -435,6 +435,7 @@ set (ttsafe_SOURCES
     ${HDF5_TEST_SOURCE_DIR}/ttsafe_attr_vlen.c
     ${HDF5_TEST_SOURCE_DIR}/ttsafe_cancel.c
     ${HDF5_TEST_SOURCE_DIR}/ttsafe_dcreate.c
+    ${HDF5_TEST_SOURCE_DIR}/ttsafe_direct_chunk.c
     ${HDF5_TEST_SOURCE_DIR}/ttsafe_develop.c
     ${HDF5_TEST_SOURCE_DIR}/ttsafe_error.c
     ${HDF5_TEST_SOURCE_DIR}/ttsafe_rwlock.c

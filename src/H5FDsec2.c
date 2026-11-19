@@ -484,6 +484,9 @@ H5FD__sec2_query(const H5FD_t *_file, unsigned long *flags /* out */)
                                                        VFD      */
         *flags |=
             H5FD_FEAT_READWRITE_NO_H5_CALLS; /* read() and write() callbacks do not re-enter the HDF5 API */
+#ifdef H5_HAVE_PREADWRITE
+        *flags |= H5FD_FEAT_CONCURRENT_READ; /* read() uses pread() and leaves the file structure alone */
+#endif                                       /* H5_HAVE_PREADWRITE */
 
         /* Check for flags that are set by h5repart */
         if (file && file->fam_to_single)

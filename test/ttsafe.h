@@ -58,6 +58,7 @@ void tts_attr_vlen(void *);
 void tts_thread_id(void *);
 void tts_develop_api(void *);
 void tts_error_stacks(void *);
+void tts_direct_chunk(void *);
 
 /* Prototypes for the cleanup routines */
 void cleanup_dcreate(void *);
@@ -65,6 +66,7 @@ void cleanup_error(void *);
 void cleanup_cancel(void *);
 void cleanup_acreate(void *);
 void cleanup_attr_vlen(void *);
+void cleanup_direct_chunk(void *);
 
 #endif /* H5_HAVE_THREADSAFE_API */
 #endif /* H5_HAVE_THREADS */

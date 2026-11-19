@@ -589,6 +589,7 @@ H5D__chunk_direct_read(const H5D_t *dset, hsize_t *offset, uint32_t *filters, vo
     H5D_chunk_ud_t      udata;                                 /* User data for querying chunk info */
     hsize_t             scaled[H5S_MAX_RANK];                  /* Scaled coordinates for this chunk */
     size_t              read_size   = 0;                       /* Size of raw data to read */
+    size_t              nalloc_in   = nalloc ? *nalloc : 0;    /* Size of the caller's buffer */
     haddr_t             read_offset = HADDR_UNDEF;             /* File address to read from */
     herr_t              ret_value   = SUCCEED;                 /* Return value */
 
@@ -678,18 +679,17 @@ H5D__chunk_direct_read(const H5D_t *dset, hsize_t *offset, uint32_t *filters, vo
     /* If nalloc is provided, check if *nalloc is large enough.  If not provided, assume it is large enough
      * (this is the insecure older behaviour that is disallowed by H5Dread_chunk2(), but we must support it
      * here for the deprecated H5Dreach_chunk1()). */
-    if (read_size > 0 && buf && (!nalloc || *nalloc >= read_size))
-        /* Read the chunk data into the supplied buffer */
-        if (H5F_shared_block_read(H5F_SHARED(dset->oloc.file), H5FD_MEM_DRAW, read_offset, read_size, buf) <
-            0)
-            HGOTO_ERROR(H5E_IO, H5E_READERROR, FAIL, "unable to read raw data chunk");
-
-    /* Return the size of the chunk block in *nalloc if nalloc is provided */
+    /* Return the size of the chunk block in *nalloc if nalloc is provided, and the filter mask */
     if (nalloc)
         *nalloc = read_size;
-
-    /* Return the filter mask */
     *filters = udata.filter_mask;
+
+    /* Read the chunk data into the supplied buffer.  The read may release the
+     * global lock (see H5F_shared_block_read_unlocked()), so another thread
+     * may close the dataset meanwhile: nothing after it uses the dataset. */
+    if (read_size > 0 && buf && (!nalloc || read_size <= nalloc_in))
+        if (H5F_shared_block_read_unlocked(H5F_SHARED(dset->oloc.file), read_offset, read_size, buf) < 0)
+            HGOTO_ERROR(H5E_IO, H5E_READERROR, FAIL, "unable to read raw data chunk");
 
 done:
     FUNC_LEAVE_NOAPI_TAG(ret_value)

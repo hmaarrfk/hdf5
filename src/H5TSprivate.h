@@ -332,6 +332,10 @@ H5_DLL herr_t H5TS_api_lock(void);
 H5_DLL herr_t H5TS_api_lock(unsigned *dlftt);
 #endif
 H5_DLL herr_t H5TS_api_unlock(void);
+#ifdef H5_HAVE_THREADSAFE
+H5_DLL herr_t H5TS_api_lock_yield(bool *yielded);
+H5_DLL herr_t H5TS_api_lock_resume(void);
+#endif /* H5_HAVE_THREADSAFE */
 #endif /* H5_HAVE_THREADSAFE_API */
 
 /* 'Once' operationss */

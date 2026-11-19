@@ -465,6 +465,69 @@ H5TS_api_unlock(void)
 done:
     FUNC_LEAVE_NOAPI_NAMECHECK_ONLY(ret_value)
 } /* H5TS_api_unlock */
+
+#ifdef H5_HAVE_THREADSAFE
+/*--------------------------------------------------------------------------
+ * Function:    H5TS_api_lock_yield
+ *
+ * Purpose:     Releases the global "API" lock around a blocking operation
+ *              that touches no shared library state, if the calling thread
+ *              holds the lock exactly once, i.e. it is not inside a callback
+ *              of another API call.  *YIELDED tells whether the lock was
+ *              released; if it was, H5TS_api_lock_resume() must be called
+ *              afterwards.
+ *
+ * Return:      Non-negative on success / Negative on failure
+ *
+ *--------------------------------------------------------------------------
+ */
+herr_t
+H5TS_api_lock_yield(bool *yielded)
+{
+    herr_t ret_value = SUCCEED;
+
+    FUNC_ENTER_NOAPI_NAMECHECK_ONLY
+
+    *yielded = false;
+    if (1 == H5TS_api_info_p.lock_count) {
+        H5TS_api_info_p.lock_count = 0;
+        if (H5_UNLIKELY(H5TS_mutex_unlock(&H5TS_api_info_p.api_mutex) < 0)) {
+            H5TS_api_info_p.lock_count = 1;
+            HGOTO_DONE(FAIL);
+        }
+        *yielded = true;
+    }
+
+done:
+    FUNC_LEAVE_NOAPI_NAMECHECK_ONLY(ret_value)
+} /* H5TS_api_lock_yield */
+
+/*--------------------------------------------------------------------------
+ * Function:    H5TS_api_lock_resume
+ *
+ * Purpose:     Acquires the global "API" lock released by
+ *              H5TS_api_lock_yield(), blocking until it is available.
+ *
+ * Return:      Non-negative on success / Negative on failure
+ *
+ *--------------------------------------------------------------------------
+ */
+herr_t
+H5TS_api_lock_resume(void)
+{
+    herr_t ret_value = SUCCEED;
+
+    FUNC_ENTER_NOAPI_NAMECHECK_ONLY
+
+    H5TS_atomic_fetch_add_uint(&H5TS_api_info_p.attempt_lock_count, 1);
+    if (H5_UNLIKELY(H5TS_mutex_lock(&H5TS_api_info_p.api_mutex) < 0))
+        HGOTO_DONE(FAIL);
+    H5TS_api_info_p.lock_count = 1;
+
+done:
+    FUNC_LEAVE_NOAPI_NAMECHECK_ONLY(ret_value)
+} /* H5TS_api_lock_resume */
+#endif /* H5_HAVE_THREADSAFE */
 #endif /* H5_HAVE_THREADSAFE_API */
 
 /*--------------------------------------------------------------------------

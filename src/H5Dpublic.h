@@ -1422,6 +1422,13 @@ H5_DLL herr_t H5Dwrite_chunk(hid_t dset_id, hid_t dxpl_id, uint32_t filters, con
  * \note H5Dread_chunk2() and H5Dwrite_chunk() are currently not supported
  *       with parallel HDF5 and do not support variable-length datatypes.
  *
+ * \note In a threadsafe build, H5Dread_chunk2() releases the library's global
+ *       lock while the file driver reads the chunk, when the file holding the
+ *       chunk is open read-only without SWMR or a page buffer and its driver
+ *       sets #H5FD_FEAT_CONCURRENT_READ, as the sec2 driver does where
+ *       pread() is available. Reads of chunks from several threads then
+ *       overlap, and other threads can call the library meanwhile.
+ *
  * \since 2.0.0
  *
  */

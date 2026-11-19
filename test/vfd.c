@@ -230,6 +230,11 @@ test_sec2(void)
         TEST_ERROR;
     if (!(driver_flags & H5FD_FEAT_READWRITE_NO_H5_CALLS))
         TEST_ERROR;
+#ifdef H5_HAVE_PREADWRITE
+    if (!(driver_flags & H5FD_FEAT_CONCURRENT_READ))
+        TEST_ERROR;
+    driver_flags &= ~(unsigned long)H5FD_FEAT_CONCURRENT_READ;
+#endif
     /* Check for extra flags not accounted for above */
     if (driver_flags !=
         (H5FD_FEAT_AGGREGATE_METADATA | H5FD_FEAT_ACCUMULATE_METADATA | H5FD_FEAT_DATA_SIEVE |

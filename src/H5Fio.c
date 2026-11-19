@@ -29,6 +29,7 @@
 /* Headers */
 /***********/
 #include "H5private.h"   /* Generic Functions			*/
+#include "H5CXprivate.h" /* API Contexts                         */
 #include "H5Eprivate.h"  /* Error handling		  	*/
 #include "H5Fpkg.h"      /* File access				*/
 #include "H5FDprivate.h" /* File drivers				*/
@@ -100,6 +101,91 @@ H5F_shared_block_read(H5F_shared_t *f_sh, H5FD_mem_t type, haddr_t addr, size_t 
 done:
     FUNC_LEAVE_NOAPI(ret_value)
 } /* end H5F_shared_block_read() */
+
+/*-------------------------------------------------------------------------
+ * Function:    H5F_shared_block_read_unlocked
+ *
+ * Purpose:     Reads raw data, as H5F_shared_block_read() does, but releases
+ *              the global lock of a threadsafe library while the file
+ *              driver reads, so that other threads can use the library
+ *              meanwhile.
+ *
+ *              The lock is released only when nothing else in the read
+ *              path is shared: the file is open read-only without SWMR, so
+ *              no metadata accumulator holds dirty data and the end of
+ *              allocated space does not move; there is no page buffer; the
+ *              driver sets H5FD_FEAT_CONCURRENT_READ; and the calling
+ *              thread holds the lock once, i.e. it is not inside a
+ *              callback.  The driver is called directly, past the page
+ *              buffer and accumulator layers, which then have nothing to
+ *              add.  H5F__dest() waits for these reads before it closes
+ *              the driver, so another thread closing the file cannot free
+ *              the driver while it reads.  The caller must not use objects
+ *              of the file after the call that another thread could have
+ *              closed meanwhile.
+ *
+ *              Otherwise the data is read with H5F_shared_block_read().
+ *
+ * Return:      Non-negative on success/Negative on failure
+ *
+ *-------------------------------------------------------------------------
+ */
+herr_t
+H5F_shared_block_read_unlocked(H5F_shared_t *f_sh, haddr_t addr, size_t size, void *buf /*out*/)
+{
+    herr_t ret_value = SUCCEED; /* Return value */
+
+    FUNC_ENTER_NOAPI(FAIL)
+
+    assert(f_sh);
+    assert(buf);
+    assert(H5_addr_defined(addr));
+
+#ifdef H5_HAVE_THREADSAFE
+    if (size > 0 && !(H5F_SHARED_INTENT(f_sh) & (H5F_ACC_RDWR | H5F_ACC_SWMR_READ)) &&
+        NULL == f_sh->page_buf && H5F_SHARED_HAS_FEATURE(f_sh, H5FD_FEAT_CONCURRENT_READ)) {
+        uint32_t actual_selection_io_mode; /* Selection I/O mode to report */
+        bool     yielded = false;          /* Whether the global lock was released */
+        herr_t   status;                   /* Status of the driver read */
+
+        /* Check for attempting I/O on 'temporary' file address */
+        if (H5_addr_le(f_sh->tmp_addr, (addr + size)))
+            HGOTO_ERROR(H5E_IO, H5E_BADRANGE, FAIL, "attempting I/O in temporary file space");
+
+        /* Check the range against the end of allocated space under the lock */
+        if (H5FD_check_read_range(f_sh->lf, H5FD_MEM_DRAW, addr, size) < 0)
+            HGOTO_ERROR(H5E_IO, H5E_READERROR, FAIL, "raw data read out of range");
+
+        H5TS_atomic_fetch_add_uint(&f_sh->nunlocked_reads, 1);
+        if (H5TS_api_lock_yield(&yielded) < 0) {
+            H5TS_atomic_fetch_sub_uint(&f_sh->nunlocked_reads, 1);
+            HGOTO_ERROR(H5E_LIB, H5E_CANTUNLOCK, FAIL, "can't release the global lock");
+        }
+
+        /* Touches only the driver and this thread's API context and error stack */
+        status = H5FD_read_driver(f_sh->lf, H5FD_MEM_DRAW, addr, size, buf);
+
+        H5TS_atomic_fetch_sub_uint(&f_sh->nunlocked_reads, 1);
+        if (yielded && H5TS_api_lock_resume() < 0)
+            HGOTO_ERROR(H5E_LIB, H5E_CANTLOCK, FAIL, "can't reacquire the global lock");
+        if (status < 0)
+            HGOTO_ERROR(H5E_IO, H5E_READERROR, FAIL, "file driver read failed");
+
+        /* Report the I/O mode as H5FD_read() does */
+        H5CX_get_actual_selection_io_mode(&actual_selection_io_mode);
+        actual_selection_io_mode |= H5D_SCALAR_IO;
+        H5CX_set_actual_selection_io_mode(actual_selection_io_mode);
+
+        HGOTO_DONE(SUCCEED);
+    }
+#endif /* H5_HAVE_THREADSAFE */
+
+    if (H5F_shared_block_read(f_sh, H5FD_MEM_DRAW, addr, size, buf) < 0)
+        HGOTO_ERROR(H5E_IO, H5E_READERROR, FAIL, "raw data read failed");
+
+done:
+    FUNC_LEAVE_NOAPI(ret_value)
+} /* end H5F_shared_block_read_unlocked() */
 
 /*-------------------------------------------------------------------------
  * Function:	H5F_block_read
